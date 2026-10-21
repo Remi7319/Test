@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mon Portefeuille</title>
+<meta name="description" content="Saisissez vos positions et obtenez la répartition de votre portefeuille. Vos données restent dans votre navigateur.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: header + toolbar, dashboard (same as the published one), then the editable positions table */
+  :root {
+    --bg: #f3f5f2; --fg: #14211c; --muted: #5a6a63; --line: #d5ddd8; --panel: #ffffff; --track: #e3e9e5;
+    --input: #f8faf8; --accent: #1f6f5c; --accent-fg: #ffffff; --bad: #b3412f;
+    --c1: #1f6f5c; --c2: #6b8fb8; --c3: #c9a24a; --c4: #9a7bb5; --c5: #c27a5a; --c6: #7f8f88; --bar-muted: #b7c4bd;
+    --font-display: "Fraunces", Georgia, serif;
+    --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1714; --fg: #e8efeb; --muted: #9aaba3; --line: #26332e; --panel: #15201c; --track: #22302b;
+      --input: #101a16; --accent: #5cc2a4; --accent-fg: #0f1714; --bad: #e58a77;
+      --c1: #5cc2a4; --c2: #8fb2dc; --c3: #e0bd62; --c4: #b9a0d4; --c5: #e09a7b; --c6: #9aaba3; --bar-muted: #4a5d55;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.5; }
+  .wrap { max-width: 1120px; margin-inline: auto; padding: 32px max(20px, env(safe-area-inset-left, 0px)) 56px; display: grid; gap: 24px; }
+  a { color: var(--accent); }
+  .top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px; }
+  .eyebrow { margin: 0; font-size: .78rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .total { margin: 4px 0 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(2.2rem, 6vw, 3.4rem); line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+  button, .btn { font: inherit; font-size: .9rem; font-weight: 500; border-radius: 8px; padding: 8px 14px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+  button:hover, .btn:hover { border-color: var(--accent); }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  button.danger { color: var(--bad); }
+  button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .privacy { margin: 0; font-size: .82rem; color: var(--muted); }
+  .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 24px; display: grid; gap: 16px; align-content: start; min-width: 0; }
+  .card h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+  .note { margin: -10px 0 0; font-size: .82rem; color: var(--muted); }
+  .cat { display: grid; grid-template-columns: minmax(0, 11rem) minmax(0, 1fr); gap: 20px; align-items: center; }
+  @media (max-width: 520px) { .cat { grid-template-columns: 1fr; justify-items: center; } }
+  .donut { position: relative; width: 100%; max-width: 11rem; aspect-ratio: 1; border-radius: 50%; background: var(--track); }
+  .donut::after { content: ""; position: absolute; inset: 19%; border-radius: 50%; background: var(--panel); }
+  .donut-label { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; z-index: 1; }
+  .donut-label strong { font-family: var(--font-display); font-weight: 400; font-size: 1.7rem; line-height: 1; }
+  .donut-label span { font-size: .75rem; color: var(--muted); margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th { text-align: left; font-weight: 400; font-size: .78rem; color: var(--muted); padding: 0 10px 6px 0; white-space: nowrap; }
+  td { padding: 10px 10px 10px 0; border-top: 1px solid var(--line); vertical-align: middle; }
+  .r { text-align: right; padding-right: 0; padding-left: 14px; white-space: nowrap; }
+  .big { font-family: var(--font-display); font-size: 1.15rem; }
+  .masked { color: var(--muted); }
+  .sw { display: inline-block; width: .7rem; height: .7rem; border-radius: 3px; margin-right: .5rem; vertical-align: -.05rem; }
+  .nowrap { white-space: nowrap; }
+  .bars { display: grid; gap: 12px; }
+  .bar-top { display: flex; justify-content: space-between; gap: 10px; font-size: .85rem; font-variant-numeric: tabular-nums; }
+  .bar-top span:last-child { color: var(--muted); white-space: nowrap; }
+  .track { height: 10px; border-radius: 5px; background: var(--track); overflow: hidden; margin-top: 4px; }
+  .fill { height: 100%; border-radius: 5px; background: var(--bar-muted); }
+  .fill.top { background: var(--c1); }
+  .empty-msg { color: var(--muted); font-size: .9rem; margin: 0; }
+  .tablewrap { overflow-x: auto; }
+  .edit input, .edit select { font: inherit; font-size: .9rem; color: var(--fg); background: var(--input); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; }
+  .edit input.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .edit td { padding: 6px 8px 6px 0; }
+  .edit td:first-child { min-width: 12rem; }
+  .edit td.sel { min-width: 9rem; }
+  .edit td.amt { min-width: 8rem; }
+  .edit .del { padding: 6px 10px; color: var(--muted); }
+  .row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  details { border-top: 1px solid var(--line); padding-top: 12px; }
+  summary { cursor: pointer; font-size: .9rem; font-weight: 500; }
+  textarea { width: 100%; min-height: 8rem; font: .85rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); background: var(--input); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-top: 10px; }
+  .help { font-size: .82rem; color: var(--muted); margin: 8px 0; }
+  .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .9rem; }
+  .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: .9rem; z-index: 5; max-width: calc(100% - 32px); }
+  .back { font-size: .85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="eyebrow">Valeur totale du portefeuille</p>
+      <p class="total" id="total">0 €</p>
+    </div>
+    <div class="toolbar">
+      <button type="button" id="btn-mask" aria-pressed="false">Masquer les montants</button>
+      <button type="button" id="btn-export">Exporter mes données</button>
+      <button type="button" id="btn-import">Importer un fichier</button>
+      <input type="file" id="file-import" accept=".json,application/json" hidden>
+    </div>
+  </header>
+  <p class="privacy">Vos données restent dans ce navigateur : rien n'est envoyé sur un serveur. Pour les retrouver sur un autre appareil, exportez-les puis importez le fichier là-bas.</p>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Répartition par catégorie</h2>
+      <div class="cat">
+        <div class="donut" id="donut"><div class="donut-label"><strong id="d-top">—</strong><span id="d-top-name"></span></div></div>
+        <table>
+          <thead><tr><th>Catégorie</th><th class="r">Montant</th><th class="r">Part</th></tr></thead>
+          <tbody id="cat-body"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Répartition par type d'enveloppe</h2>
+      <div class="bars" id="bars"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Mes positions</h2>
+    <p class="note">Une ligne par support. Les modifications sont enregistrées automatiquement dans ce navigateur.</p>
+    <div class="tablewrap">
+      <table class="edit">
+        <thead><tr><th>Support</th><th>Type d'enveloppe</th><th>Catégorie</th><th class="r">Montant (€)</th><th><span hidden>Supprimer</span></th></tr></thead>
+        <tbody id="edit-body"></tbody>
+      </table>
+    </div>
+    <p class="empty-msg" id="empty-msg" hidden>Aucune position pour l'instant. Ajoutez une ligne, collez un tableau ou chargez l'exemple.</p>
+    <div class="row-actions">
+      <button type="button" class="primary" id="btn-add">Ajouter une ligne</button>
+      <button type="button" id="btn-sample">Charger un exemple</button>
+      <span id="clear-zone"><button type="button" class="danger" id="btn-clear">Tout effacer</button></span>
+    </div>
+    <details>
+      <summary>Coller depuis Excel ou Google Sheets</summary>
+      <p class="help">Copiez 4 colonnes dans cet ordre : support, type d'enveloppe (PEA, Compte-titres, Assurance vie…), catégorie (Actions, Obligations, Or, Crypto…), montant. Une ligne par position.</p>
+      <label for="paste" class="help">Tableau à coller</label>
+      <textarea id="paste" placeholder="ETF MSCI World&#9;PEA&#9;Actions&#9;12 500"></textarea>
+      <div class="row-actions" style="margin-top:10px">
+        <button type="button" class="primary" id="btn-paste-add">Ajouter ces lignes</button>
+        <button type="button" id="btn-paste-replace">Remplacer mes lignes</button>
+      </div>
+    </details>
+  </section>
+
+  <p class="back"><a href="./">← Voir le dashboard d'exemple</a></p>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  const KEY = 'mon-portefeuille-v1';
+  const ENVS = ['PEA', 'Compte-titres', 'Assurance vie', 'PER', 'Livret', 'Autre'];
+  const CATS = ['Actions', 'Obligations', 'Or', 'Crypto', 'Monétaire', 'Immobilier', 'Autre'];
+  const GROUP = c => (c === 'Or' || c === 'Crypto') ? 'Or & Crypto' : c;
+  const GROUP_ORDER = ['Actions', 'Obligations', 'Or & Crypto', 'Monétaire', 'Immobilier', 'Autre'];
+  const GROUP_COLOR = { 'Actions': 'var(--c1)', 'Obligations': 'var(--c2)', 'Or & Crypto': 'var(--c3)', 'Monétaire': 'var(--c4)', 'Immobilier': 'var(--c5)', 'Autre': 'var(--c6)' };
+  const MASK = '****** €';
+  const SAMPLE = [
+    { support: 'ETF MSCI World', env: 'PEA', cat: 'Actions', amount: 24000 },
+    { support: 'ETF Marchés émergents', env: 'PEA', cat: 'Actions', amount: 3500 },
+    { support: 'ETF ACWI', env: 'Compte-titres', cat: 'Actions', amount: 6000 },
+    { support: 'Fonds euros', env: 'Assurance vie', cat: 'Monétaire', amount: 8000 },
+    { support: 'Obligations zone euro', env: 'Assurance vie', cat: 'Obligations', amount: 4000 },
+    { support: 'Or physique', env: 'Compte-titres', cat: 'Or', amount: 1500 },
+    { support: 'Bitcoin', env: 'Compte-titres', cat: 'Crypto', amount: 1000 }
+  ];
+
+  let state = { rows: [], masked: false };
+
+  const $ = id => document.getElementById(id);
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const eur = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+  const pct = v => (v * 100).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
+  const money = v => state.masked ? MASK : eur.format(v);
+
+  function parseAmount(v) {
+    if (typeof v === 'number') return isFinite(v) ? v : 0;
+    let s = String(v || '').replace(/[€\s  ]/g, '');
+    if (s.includes(',') && s.includes('.')) s = s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+    else s = s.replace(',', '.');
+    const n = parseFloat(s);
+    return isFinite(n) ? n : 0;
+  }
+  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  function matchEnv(v) {
+    const n = norm(v);
+    if (!n) return 'Autre';
+    if (n.includes('pea')) return 'PEA';
+    if (n === 'cto' || n.includes('titre')) return 'Compte-titres';
+    if (n === 'av' || n.includes('assurance')) return 'Assurance vie';
+    if (n.includes('per')) return 'PER';
+    if (n.includes('livret')) return 'Livret';
+    return ENVS.find(e => norm(e) === n) || 'Autre';
+  }
+  function matchCat(v) {
+    const n = norm(v);
+    if (n.startsWith('action')) return 'Actions';
+    if (n.startsWith('oblig')) return 'Obligations';
+    if (n === 'or' || n.startsWith('gold')) return 'Or';
+    if (n.includes('crypto') || n.includes('bitcoin') || n === 'btc') return 'Crypto';
+    if (n.includes('mone') || n.includes('fonds euro') || n.includes('cash')) return 'Monétaire';
+    if (n.includes('immo') || n.includes('scpi')) return 'Immobilier';
+    return CATS.find(c => norm(c) === n) || 'Autre';
+  }
+  const clean = r => ({ support: String(r.support || '').slice(0, 120), env: ENVS.includes(r.env) ? r.env : matchEnv(r.env), cat: CATS.includes(r.cat) ? r.cat : matchCat(r.cat), amount: Math.max(0, parseAmount(r.amount)) });
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  function load() {
+    try { const raw = localStorage.getItem(KEY); if (raw) { const d = JSON.parse(raw); state.rows = (d.rows || []).map(clean); state.masked = !!d.masked; } } catch (e) {}
+  }
+  let toastTimer;
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2600); }
+
+  // ---------- Dashboard ----------
+  function renderDash() {
+    const rows = state.rows.filter(r => r.amount > 0);
+    const total = rows.reduce((s, r) => s + r.amount, 0);
+    $('total').textContent = money(total);
+    $('btn-mask').setAttribute('aria-pressed', String(state.masked));
+    $('btn-mask').textContent = state.masked ? 'Afficher les montants' : 'Masquer les montants';
+
+    const byCat = new Map();
+    rows.forEach(r => byCat.set(GROUP(r.cat), (byCat.get(GROUP(r.cat)) || 0) + r.amount));
+    const cats = GROUP_ORDER.filter(c => byCat.has(c)).map(c => ({ name: c, amount: byCat.get(c), part: total ? byCat.get(c) / total : 0 }));
+    let acc = 0;
+    const stops = cats.map(c => { const a = acc; acc += c.part * 100; return `${GROUP_COLOR[c.name]} ${a}% ${acc}%`; });
+    $('donut').style.background = stops.length ? `conic-gradient(${stops.join(', ')})` : '';
+    const top = cats.slice().sort((a, b) => b.amount - a.amount)[0];
+    $('d-top').textContent = top ? pct(top.part) : '—';
+    $('d-top-name').textContent = top ? top.name : '';
+    const cb = $('cat-body'); cb.innerHTML = '';
+    if (!cats.length) { const tr = el('tr'); const td = el('td', 'masked', 'Aucune donnée'); td.colSpan = 3; tr.appendChild(td); cb.appendChild(tr); }
+    cats.forEach(c => {
+      const tr = el('tr');
+      const td1 = el('td', 'nowrap'); const sw = el('span', 'sw'); sw.style.background = GROUP_COLOR[c.name]; td1.append(sw, c.name);
+      tr.append(td1, el('td', 'r' + (state.masked ? ' masked' : ''), money(c.amount)), el('td', 'r big', pct(c.part)));
+      cb.appendChild(tr);
+    });
+
+    const byEnv = new Map();
+    rows.forEach(r => byEnv.set(r.env, (byEnv.get(r.env) || 0) + r.amount));
+    const envs = [...byEnv].sort((a, b) => b[1] - a[1]);
+    const bars = $('bars'); bars.innerHTML = '';
+    if (!envs.length) bars.appendChild(el('p', 'empty-msg', 'Aucune donnée'));
+    const max = envs.length ? envs[0][1] : 1;
+    envs.forEach(([name, amount], i) => {
+      const b = el('div');
+      const t = el('div', 'bar-top'); t.append(el('span', null, name), el('span', null, `${money(amount)} · ${pct(total ? amount / total : 0)}`));
+      const track = el('div', 'track'); const f = el('div', 'fill' + (i === 0 ? ' top' : '')); f.style.width = (amount / max * 100) + '%';
+      track.appendChild(f); b.append(t, track); bars.appendChild(b);
+    });
+  }
+
+  // ---------- Editable table ----------
+  function makeSelect(options, value, label) {
+    const s = el('select'); s.setAttribute('aria-label', label);
+    options.forEach(o => { const op = el('option', null, o); op.value = o; if (o === value) op.selected = true; s.appendChild(op); });
+    return s;
+  }
+  function renderEdit() {
+    const body = $('edit-body'); body.innerHTML = '';
+    state.rows.forEach((r, i) => {
+      const tr = el('tr');
+      const sup = el('input'); sup.type = 'text'; sup.value = r.support; sup.placeholder = 'ex. ETF MSCI World'; sup.setAttribute('aria-label', 'Support'); sup.id = 'sup-' + i;
+      sup.addEventListener('input', () => { r.support = sup.value; save(); });
+      const env = makeSelect(ENVS, r.env, 'Type d\'enveloppe');
+      env.addEventListener('change', () => { r.env = env.value; save(); renderDash(); });
+      const cat = makeSelect(CATS, r.cat, 'Catégorie');
+      cat.addEventListener('change', () => { r.cat = cat.value; save(); renderDash(); });
+      const amt = el('input', 'num'); amt.type = 'text'; amt.inputMode = 'decimal'; amt.setAttribute('aria-label', 'Montant en euros');
+      amt.value = r.amount ? r.amount.toLocaleString('fr-FR', { maximumFractionDigits: 2 }) : '';
+      amt.placeholder = '0';
+      amt.addEventListener('input', () => { r.amount = Math.max(0, parseAmount(amt.value)); save(); renderDash(); });
+      amt.addEventListener('blur', () => { amt.value = r.amount ? r.amount.toLocaleString('fr-FR', { maximumFractionDigits: 2 }) : ''; });
+      const del = el('button', 'del', '✕'); del.type = 'button'; del.setAttribute('aria-label', 'Supprimer la ligne');
+      del.addEventListener('click', () => { state.rows.splice(i, 1); save(); renderAll(); });
+      const td = (child, cls) => { const t = el('td', cls); t.appendChild(child); return t; };
+      tr.append(td(sup), td(env, 'sel'), td(cat, 'sel'), td(amt, 'amt'), td(del));
+      body.appendChild(tr);
+    });
+    $('empty-msg').hidden = state.rows.length > 0;
+  }
+  function renderAll() { renderEdit(); renderDash(); }
+
+  // ---------- Paste ----------
+  function parsePaste(text) {
+    return text.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(line => {
+      const cols = line.includes('\t') ? line.split('\t') : line.split(';');
+      return cols.map(c => c.trim());
+    }).filter(c => c.length >= 2 && parseAmount(c[c.length - 1]) > 0)
+      .map(c => c.length >= 4 ? clean({ support: c[0], env: c[1], cat: c[2], amount: c[3] })
+                              : clean({ support: c[0], env: c.length === 3 ? c[1] : '', cat: '', amount: c[c.length - 1] }));
+  }
+  function doPaste(replace) {
+    const rows = parsePaste($('paste').value);
+    if (!rows.length) { toast('Aucune ligne reconnue. Vérifiez qu\'il y a bien 4 colonnes avec un montant à la fin.'); return; }
+    state.rows = replace ? rows : state.rows.concat(rows);
+    $('paste').value = '';
+    save(); renderAll();
+    toast(`${rows.length} ligne${rows.length > 1 ? 's' : ''} ajoutée${rows.length > 1 ? 's' : ''}`);
+  }
+
+  // ---------- Export / import ----------
+  function exportData() {
+    const data = { app: 'mon-portefeuille', version: 1, exportedAt: new Date().toISOString(), rows: state.rows };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = el('a'); a.href = url; a.download = `mon-portefeuille-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('Fichier exporté');
+  }
+  function importFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const d = JSON.parse(reader.result);
+        const rows = Array.isArray(d) ? d : d.rows;
+        if (!Array.isArray(rows)) throw new Error('format');
+        state.rows = rows.map(clean);
+        save(); renderAll();
+        toast(`${state.rows.length} ligne${state.rows.length > 1 ? 's' : ''} importée${state.rows.length > 1 ? 's' : ''}`);
+      } catch (e) {
+        toast('Ce fichier n\'est pas un export de Mon Portefeuille. Choisissez le fichier .json créé avec « Exporter mes données ».');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ---------- Clear with in-page confirmation ----------
+  function askClear() {
+    const zone = $('clear-zone'); zone.innerHTML = '';
+    const box = el('span', 'confirm');
+    const yes = el('button', 'danger', 'Oui, tout effacer'); yes.type = 'button';
+    const no = el('button', null, 'Annuler'); no.type = 'button';
+    box.append(el('span', null, 'Effacer toutes les lignes ?'), yes, no);
+    zone.appendChild(box);
+    const restore = () => { zone.innerHTML = ''; const b = el('button', 'danger', 'Tout effacer'); b.type = 'button'; b.id = 'btn-clear'; b.addEventListener('click', askClear); zone.appendChild(b); };
+    yes.addEventListener('click', () => { state.rows = []; save(); renderAll(); restore(); toast('Toutes les lignes ont été effacées'); });
+    no.addEventListener('click', restore);
+    no.focus();
+  }
+
+  // ---------- Wiring ----------
+  $('btn-add').addEventListener('click', () => {
+    state.rows.push({ support: '', env: 'PEA', cat: 'Actions', amount: 0 });
+    save(); renderAll();
+    const last = document.getElementById('sup-' + (state.rows.length - 1)); if (last) last.focus();
+  });
+  $('btn-sample').addEventListener('click', () => { state.rows = SAMPLE.map(r => ({ ...r })); save(); renderAll(); toast('Exemple chargé : remplacez les lignes par les vôtres'); });
+  $('btn-clear').addEventListener('click', askClear);
+  $('btn-mask').addEventListener('click', () => { state.masked = !state.masked; save(); renderDash(); });
+  $('btn-export').addEventListener('click', exportData);
+  $('btn-import').addEventListener('click', () => $('file-import').click());
+  $('file-import').addEventListener('change', e => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
+  $('btn-paste-add').addEventListener('click', () => doPaste(false));
+  $('btn-paste-replace').addEventListener('click', () => doPaste(true));
+
+  load();
+  renderAll();
+})();
+</script>
+</body>
+</html>
